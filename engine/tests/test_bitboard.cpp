@@ -1,6 +1,8 @@
 // Unit tests for the lowest engine layer: basic types and bitboard helpers.
+#include <cstdint>
 #include <cstdlib>
 #include <string>
+#include <vector>
 
 #include "gambit/attacks.hpp"
 #include "gambit/bitboard.hpp"
@@ -261,6 +263,106 @@ TEST(bishop_attacks_stop_at_first_blocker) {
                               squareBb(C3) | squareBb(B2) | squareBb(C5) | squareBb(B6);
     CHECK_EQ(bishopAttacks(D4, blockers), expected);
     CHECK_EQ(bishopAttacks(D4, blockers | squareBb(D8) | squareBb(H4)), expected);
+}
+
+namespace {
+
+// Small fixed-seed generator (xorshift64*). The test must be repeatable: a failure on
+// one run has to fail on the next run too.
+struct TestRng {
+    std::uint64_t state;
+    std::uint64_t next() {
+        state ^= state >> 12;
+        state ^= state << 25;
+        state ^= state >> 27;
+        return state * 2685821657736338717ULL;
+    }
+};
+
+// Mixes medium, sparse and dense boards so that long open rays and tight blockers both occur.
+std::vector<Bitboard> randomOccupancies() {
+    TestRng rng{0x9E3779B97F4A7C15ULL};
+    std::vector<Bitboard> boards;
+    for (int i = 0; i < 100; ++i) {
+        const Bitboard a = rng.next();
+        const Bitboard b = rng.next();
+        const Bitboard c = rng.next();
+        boards.push_back(a);
+        boards.push_back(a & b & c);
+        boards.push_back(a | b);
+    }
+    return boards;
+}
+
+const int ROOK_STEPS[4][2] = {{0, 1}, {1, 0}, {0, -1}, {-1, 0}};
+const int BISHOP_STEPS[4][2] = {{1, 1}, {-1, 1}, {1, -1}, {-1, -1}};
+
+// Walks square by square and stops after the first occupied square. It is slow but
+// obviously right, and it uses no ray table or bit scan from the code under test.
+Bitboard slowSlider(Square from, Bitboard occupied, const int (*steps)[2]) {
+    Bitboard result = EMPTY_BB;
+    for (int i = 0; i < 4; ++i) {
+        int file = fileOf(from) + steps[i][0];
+        int rank = rankOf(from) + steps[i][1];
+        while (file >= 0 && file < 8 && rank >= 0 && rank < 8) {
+            const Bitboard bit = squareBb(makeSquare(file, rank));
+            result |= bit;
+            if ((occupied & bit) != 0) {
+                break;
+            }
+            file += steps[i][0];
+            rank += steps[i][1];
+        }
+    }
+    return result;
+}
+
+}  // namespace
+
+TEST(random_rook_attacks_match_slow_reference) {
+    const std::vector<Bitboard> boards = randomOccupancies();
+    for (int i = 0; i < SQUARE_NB; ++i) {
+        const Square s = static_cast<Square>(i);
+        for (const Bitboard occupied : boards) {
+            // The slider's own square may be set too, as it is in a real game.
+            CHECK_EQ(rookAttacks(s, occupied), slowSlider(s, occupied, ROOK_STEPS));
+        }
+    }
+}
+
+TEST(random_bishop_attacks_match_slow_reference) {
+    const std::vector<Bitboard> boards = randomOccupancies();
+    for (int i = 0; i < SQUARE_NB; ++i) {
+        const Square s = static_cast<Square>(i);
+        for (const Bitboard occupied : boards) {
+            CHECK_EQ(bishopAttacks(s, occupied), slowSlider(s, occupied, BISHOP_STEPS));
+        }
+    }
+}
+
+TEST(queen_attacks_are_rook_plus_bishop) {
+    const std::vector<Bitboard> boards = randomOccupancies();
+    for (int i = 0; i < SQUARE_NB; ++i) {
+        const Square s = static_cast<Square>(i);
+        for (const Bitboard occupied : boards) {
+            CHECK_EQ(queenAttacks(s, occupied),
+                     slowSlider(s, occupied, ROOK_STEPS) | slowSlider(s, occupied, BISHOP_STEPS));
+        }
+    }
+    CHECK_EQ(popcount(queenAttacks(D4, EMPTY_BB)), 27);  // 14 rook squares + 13 bishop squares
+    CHECK_EQ(popcount(queenAttacks(A1, EMPTY_BB)), 21);  // 14 + 7
+}
+
+TEST(adjacent_and_edge_blockers) {
+    // A blocker next to the slider hides everything behind it.
+    CHECK_EQ(rookAttacks(A1, squareBb(A2) | squareBb(B1)), squareBb(A2) | squareBb(B1));
+    CHECK_EQ(bishopAttacks(H8, squareBb(G7)), squareBb(G7));
+    // A blocker on the last square of a ray hides nothing, so the result is unchanged.
+    CHECK_EQ(rookAttacks(A1, squareBb(A8) | squareBb(H1)), rookAttacks(A1, EMPTY_BB));
+    CHECK_EQ(bishopAttacks(A1, squareBb(H8)), bishopAttacks(A1, EMPTY_BB));
+    // Two blockers on one ray: only the nearer one counts.
+    CHECK_EQ(rookAttacks(A1, squareBb(A4) | squareBb(A7)),
+             squareBb(A2) | squareBb(A3) | squareBb(A4) | (RANK_1_BB ^ squareBb(A1)));
 }
 
 int main() { return minitest::run_all(); }
