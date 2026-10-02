@@ -10,7 +10,7 @@ Handoff notes between phases. The full contract is in docs/SPEC.md.
 
 ## Status
 
-Phase 1 files are written and pushed. The open items below are closed in the last Phase 1 batch. Next: Phase 2.
+Phase 1 is complete. Everything is pushed to main and verified locally, from a fresh clone, in Docker and in GitHub Actions. Next: Phase 2.
 
 ## Project facts
 
@@ -71,6 +71,9 @@ Verified by running:
 - `gambit.exe` prints `Gambit 1.0.0`.
 - UI: pytest 2 passed, `python -m gambit_ui` prints `Gambit UI 1.0.0`, all UI and tools modules import.
 - Every push: author is omishapharswan and the local and remote SHAs matched.
+- Fresh clone from GitHub into a temp folder: `mingw32-make test` passed 5 of 5, `mingw32-make run` printed `Gambit 1.0.0`, pytest passed 2, `python -m gambit_ui` printed `Gambit UI 1.0.0`.
+- Docker 29.7.2: `docker build` exited 0 (ctest runs inside the build), the container printed `Gambit 1.0.0`, the runtime user is uid 10001 (gambit), and the image content size is 28.2 MB.
+- GitHub Actions on commit 00a400c: all 5 jobs succeeded (engine on ubuntu, macos and windows; ui tests; docker build).
 
 Deviations from the spec:
 
@@ -91,3 +94,6 @@ Deviations from the spec:
 - Only touch engine/ and docs/MATH.md. Do not touch ui/ or tools/.
 - main.cpp currently prints the version. Replace it with the UCI loop (GAMBIT_VERSION is injected by CMake from the project version).
 - Real performance numbers go in this file: startpos perft 5 time, search depth 6 time, bench nodes and nps.
+- The Dockerfile copies only CMakeLists.txt and engine/. The engine must build without any file outside those.
+- On Windows a new terminal can lose the compiler and CMake from PATH. WinLibs GCC is under %LOCALAPPDATA%\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.POSIX.UCRT_*\mingw64\bin and CMake is in C:\Program Files\CMake\bin.
+- Working style: the author uses Windows PowerShell and wants short paste-ready command blocks, one batch at a time. Each batch ends with commit and push plus the identity and SHA checks above.
