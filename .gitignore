@@ -1,0 +1,30 @@
+# Build outputs
+build/
+out/
+cmake-build-*/
+*.exe
+*.o
+*.obj
+*.a
+*.lib
+*.pdb
+*.ilk
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# Editors and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Secrets must never be committed
+.env
+*.pem
+*.key

@@ -1,0 +1,14 @@
+# The image only needs CMakeLists.txt and engine/, so everything else stays out of the build context.
+.git
+.github
+build
+ui
+tools
+docs
+*.md
+.vscode
+.idea
+.venv
+venv
+__pycache__
+*.pyc
