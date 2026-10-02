@@ -1,6 +1,8 @@
 // Unit tests for the lowest engine layer: basic types and bitboard helpers.
+#include <cstdlib>
 #include <string>
 
+#include "gambit/attacks.hpp"
 #include "gambit/bitboard.hpp"
 #include "gambit/types.hpp"
 #include "minitest.hpp"
@@ -171,6 +173,94 @@ TEST(bitboard_diagram) {
         "........\n"
         "1.......\n";
     CHECK_EQ(bitboardToString(squareBb(A1) | squareBb(H8)), expected);
+}
+
+namespace {
+
+// Distance rules for the jump pieces, written from the rules of chess and not copied
+// from the table builder, so a mistake in either one shows up as a mismatch.
+bool isKnightStep(int fileDist, int rankDist) {
+    return (fileDist == 1 && rankDist == 2) || (fileDist == 2 && rankDist == 1);
+}
+
+bool isKingStep(int fileDist, int rankDist) {
+    return fileDist <= 1 && rankDist <= 1 && fileDist + rankDist > 0;
+}
+
+// Every square whose absolute file and rank distance from 'from' satisfies the rule.
+Bitboard squaresByRule(Square from, bool (*rule)(int, int)) {
+    Bitboard result = EMPTY_BB;
+    for (int i = 0; i < SQUARE_NB; ++i) {
+        const Square to = static_cast<Square>(i);
+        if (rule(std::abs(fileOf(from) - fileOf(to)), std::abs(rankOf(from) - rankOf(to)))) {
+            result |= squareBb(to);
+        }
+    }
+    return result;
+}
+
+}  // namespace
+
+TEST(knight_attacks_match_geometry) {
+    for (int i = 0; i < SQUARE_NB; ++i) {
+        const Square s = static_cast<Square>(i);
+        CHECK_EQ(knightAttacks(s), squaresByRule(s, isKnightStep));
+    }
+}
+
+TEST(king_attacks_match_geometry) {
+    for (int i = 0; i < SQUARE_NB; ++i) {
+        const Square s = static_cast<Square>(i);
+        CHECK_EQ(kingAttacks(s), squaresByRule(s, isKingStep));
+    }
+}
+
+TEST(pawn_attacks_match_shifts) {
+    // The one-step shifts were tested in the previous step, so they serve as the oracle.
+    for (int i = 0; i < SQUARE_NB; ++i) {
+        const Square s = static_cast<Square>(i);
+        const Bitboard b = squareBb(s);
+        CHECK_EQ(pawnAttacks(WHITE, s), northEast(b) | northWest(b));
+        CHECK_EQ(pawnAttacks(BLACK, s), southEast(b) | southWest(b));
+    }
+}
+
+TEST(edge_and_corner_cases) {
+    CHECK_EQ(knightAttacks(A1), squareBb(B3) | squareBb(C2));
+    CHECK_EQ(popcount(knightAttacks(E4)), 8);
+    CHECK_EQ(kingAttacks(H1), squareBb(G1) | squareBb(G2) | squareBb(H2));
+    CHECK_EQ(popcount(kingAttacks(E4)), 8);
+    CHECK_EQ(popcount(kingAttacks(H5)), 5);
+    CHECK_EQ(pawnAttacks(WHITE, E4), squareBb(D5) | squareBb(F5));
+    CHECK_EQ(pawnAttacks(BLACK, E4), squareBb(D3) | squareBb(F3));
+    CHECK_EQ(pawnAttacks(WHITE, A2), squareBb(B3));  // an a-file pawn has one capture square
+    CHECK_EQ(pawnAttacks(BLACK, H7), squareBb(G6));
+    CHECK_EQ(pawnAttacks(WHITE, E8), EMPTY_BB);  // there is no rank 9 to attack
+    CHECK_EQ(pawnAttacks(BLACK, E1), EMPTY_BB);
+}
+
+TEST(rook_attacks_stop_at_first_blocker) {
+    CHECK_EQ(rookAttacks(A1, EMPTY_BB), (FILE_A_BB | RANK_1_BB) ^ squareBb(A1));
+    CHECK_EQ(popcount(rookAttacks(D4, EMPTY_BB)), 14);
+    // One blocker on each side of d4. Squares behind a blocker are hidden, but the
+    // blocker itself stays attacked because a rook may capture it.
+    const Bitboard blockers = squareBb(D6) | squareBb(G4) | squareBb(D2) | squareBb(B4);
+    const Bitboard expected = squareBb(D5) | squareBb(D6) | squareBb(E4) | squareBb(F4) |
+                              squareBb(G4) | squareBb(D3) | squareBb(D2) | squareBb(C4) |
+                              squareBb(B4);
+    CHECK_EQ(rookAttacks(D4, blockers), expected);
+    // Pieces that are not on the rook's own lines change nothing.
+    CHECK_EQ(rookAttacks(D4, blockers | squareBb(H8) | squareBb(A1)), expected);
+}
+
+TEST(bishop_attacks_stop_at_first_blocker) {
+    CHECK_EQ(popcount(bishopAttacks(A1, EMPTY_BB)), 7);
+    CHECK_EQ(popcount(bishopAttacks(D4, EMPTY_BB)), 13);
+    const Bitboard blockers = squareBb(F6) | squareBb(F2) | squareBb(B2) | squareBb(B6);
+    const Bitboard expected = squareBb(E5) | squareBb(F6) | squareBb(E3) | squareBb(F2) |
+                              squareBb(C3) | squareBb(B2) | squareBb(C5) | squareBb(B6);
+    CHECK_EQ(bishopAttacks(D4, blockers), expected);
+    CHECK_EQ(bishopAttacks(D4, blockers | squareBb(D8) | squareBb(H4)), expected);
 }
 
 int main() { return minitest::run_all(); }
