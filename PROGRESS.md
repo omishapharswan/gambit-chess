@@ -80,12 +80,11 @@ Deviations from the spec:
 - tools/selfplay.py and tools/perft_check.py exit non-zero on purpose, so `make perft` cannot pass before the real check exists.
 - The position, movegen, zobrist and search test files contain no tests yet. They pass because `run_all()` returns 0 when nothing is registered. Phase 2 must add real tests to them.
 
-## Open items for the end of Phase 1
+## Open items
 
-- LICENSE is an empty file until the author name is supplied.
-- `make build` and `make test` have not been run through the Makefile yet.
-- `docker build` has not been run (Docker is not confirmed installed on this machine).
-- The GitHub Actions results have not been checked yet.
+- The Makefile was only run on Windows through mingw32-make. It is untested on Linux and macOS, because CI builds with CMake directly and does not call make.
+- The Makefile targets `perft` and `ui` have not been run. `perft` fails on purpose until Phase 3 replaces the stub.
+- The LICENSE copyright holder is the GitHub username omishapharswan. Replace it with a real name if wanted.
 
 ## Notes for Phase 2
 
